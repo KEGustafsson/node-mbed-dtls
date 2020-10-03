@@ -57,21 +57,23 @@ void DtlsClientSocket::Initialize(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE target)
   Nan::SetPrototypeMethod(ctor, "send", Send);
   Nan::SetPrototypeMethod(ctor, "connect", Connect);
 
-  Nan::Set(target, Nan::New("DtlsClientSocket").ToLocalChecked(), ctor->GetFunction());
+  v8::Local<v8::Context> context = Nan::GetCurrentContext();
+  Nan::Set(target, Nan::New("DtlsClientSocket").ToLocalChecked(), ctor->GetFunction(context).ToLocalChecked());
 }
 
 /*
  * Node wrapper to the client socket constructor.
  */
 void DtlsClientSocket::New(const Nan::FunctionCallbackInfo<v8::Value>& info) {
-  size_t priv_key_len     = (info[0]->BooleanValue()) ? Buffer::Length(info[0]) : 0;
-  size_t peer_pub_key_len = (info[1]->BooleanValue()) ? Buffer::Length(info[1]) : 0;
-  size_t ca_len           = (info[2]->BooleanValue()) ? Buffer::Length(info[2]) : 0;
-  size_t psk_len          = (info[3]->BooleanValue()) ? Buffer::Length(info[3]) : 0;
-  size_t ident_len        = (info[4]->BooleanValue()) ? Buffer::Length(info[4]) : 0;
+  v8::Local<v8::Context> context = Nan::GetCurrentContext();
+  size_t client_key_len   = (info[0]->BooleanValue(context->GetIsolate())) ? Buffer::Length(info[0]) : 0;
+  size_t client_cert_len  = (info[1]->BooleanValue(context->GetIsolate())) ? Buffer::Length(info[1]) : 0;
+  size_t ca_len           = (info[2]->BooleanValue(context->GetIsolate())) ? Buffer::Length(info[2]) : 0;
+  size_t psk_len          = (info[3]->BooleanValue(context->GetIsolate())) ? Buffer::Length(info[3]) : 0;
+  size_t ident_len        = (info[4]->BooleanValue(context->GetIsolate())) ? Buffer::Length(info[4]) : 0;
 
-  const unsigned char* priv_key     = (priv_key_len)     ? (const unsigned char *) Buffer::Data(info[0]) : NULL;
-  const unsigned char* peer_pub_key = (peer_pub_key_len) ? (const unsigned char *) Buffer::Data(info[1]) : NULL;
+  const unsigned char* client_key   = (client_key_len)   ? (const unsigned char *) Buffer::Data(info[0]) : NULL;
+  const unsigned char* client_cert  = (client_cert_len)  ? (const unsigned char *) Buffer::Data(info[1]) : NULL;
   const unsigned char* _ca_pem      = (ca_len)           ? (const unsigned char *) Buffer::Data(info[2]) : NULL;
   const unsigned char* _psk         = (psk_len)          ? (const unsigned char *) Buffer::Data(info[3]) : NULL;
   const unsigned char* _ident       = (ident_len)        ? (const unsigned char *) Buffer::Data(info[4]) : NULL;
@@ -82,12 +84,12 @@ void DtlsClientSocket::New(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 
   int debug_level = 0;
   if (info.Length() > 8) {
-    debug_level = info[8]->Uint32Value();
+    debug_level = info[8]->Uint32Value(context).ToChecked();
   }
 
   DtlsClientSocket *socket = new DtlsClientSocket(
-    priv_key, priv_key_len,
-    peer_pub_key, peer_pub_key_len,
+    client_key, client_key_len,
+    client_cert, client_cert_len,
     _ca_pem, ca_len,
     _psk,    psk_len,
     _ident,  ident_len,
@@ -97,18 +99,19 @@ void DtlsClientSocket::New(const Nan::FunctionCallbackInfo<v8::Value>& info) {
   info.GetReturnValue().Set(info.This());
 }
 
+#define BUFFER_LENGTH 1284
 
 void DtlsClientSocket::ReceiveDataFromNode(const Nan::FunctionCallbackInfo<v8::Value>& info) {
   DtlsClientSocket *socket = Nan::ObjectWrap::Unwrap<DtlsClientSocket>(info.This());
   const unsigned char *recv_data = (const unsigned char *)Buffer::Data(info[0]);
   socket->store_data(recv_data, Buffer::Length(info[0]));
 
-  int len = 1284;
-  unsigned char buf[len];
-  len = socket->receive_data(buf, len);
+  int bufferLength = BUFFER_LENGTH;
+  unsigned char buf[BUFFER_LENGTH];
+  bufferLength = socket->receive_data(buf, bufferLength);
 
-  if (len > 0) {
-    info.GetReturnValue().Set(Nan::CopyBuffer((char*)buf, len).ToLocalChecked());
+  if (bufferLength > 0) {
+    info.GetReturnValue().Set(Nan::CopyBuffer((char*)buf, bufferLength).ToLocalChecked());
   }
 }
 
@@ -140,8 +143,8 @@ void DtlsClientSocket::Connect(const Nan::FunctionCallbackInfo<v8::Value>& info)
 
 
 DtlsClientSocket::DtlsClientSocket(
-                       const unsigned char *priv_key,     size_t priv_key_len,
-                       const unsigned char *peer_pub_key, size_t peer_pub_key_len,
+                       const unsigned char *client_key,   size_t client_key_len,
+                       const unsigned char *client_cert,  size_t client_cert_len,
                        const unsigned char *ca_pem,       size_t ca_pem_len,
                        const unsigned char *psk,          size_t psk_len,
                        const unsigned char *ident,        size_t ident_len,
@@ -170,13 +173,21 @@ DtlsClientSocket::DtlsClientSocket(
   * This is essential for limiting the size of handshake packets. Many IoT
   *   devices will only support a single ciphersuite, which may not be in this list.
   * Therefore....
-  * TODO: Might-could automatically scope this down based on the provded credentials.
+  * TODO:      Move this into node.js part of library
+  * IMPORTANT: Always list strongest ciphers first (priority)
   */
-  allowed_ciphersuites[0] = MBEDTLS_TLS_PSK_WITH_AES_128_CCM_8;   // IoTivity
-  allowed_ciphersuites[1] = MBEDTLS_TLS_PSK_WITH_AES_128_CBC_SHA256;
-  allowed_ciphersuites[2] = MBEDTLS_TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256;
-  allowed_ciphersuites[3] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8;
-  allowed_ciphersuites[4] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8;
+  int suite = 0; 
+  if( client_key )
+  {
+    allowed_ciphersuites[suite++] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8;
+    allowed_ciphersuites[suite++] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8;
+  }
+  if( ident && psk )
+  {
+    allowed_ciphersuites[suite++] = MBEDTLS_TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256;
+    allowed_ciphersuites[suite++] = MBEDTLS_TLS_PSK_WITH_AES_128_CBC_SHA256;
+    allowed_ciphersuites[suite++] = MBEDTLS_TLS_PSK_WITH_AES_128_CCM_8;   // IoTivity
+  }
 
   mbedtls_ssl_init(&ssl_context);
   mbedtls_x509_crt_init(&clicert);
@@ -210,10 +221,38 @@ DtlsClientSocket::DtlsClientSocket(
     mbedtls_ssl_conf_ca_chain(&conf, &cacert, NULL);
   }
 
-  if ((NULL != priv_key) && (priv_key_len > 0)) {
-    ret = mbedtls_ssl_conf_own_cert(&conf, &clicert, &pkey);
+  if ((NULL != client_cert) && (client_cert_len > 0)) {
+    ret = mbedtls_x509_crt_parse(&clicert, (const unsigned char *) client_cert, client_cert_len );
     if (ret != 0) goto exit;
   }
+
+  if ((NULL != client_key) && (client_key_len > 0)) {
+    ret = mbedtls_pk_parse_key( &pkey,
+                        (const unsigned char*) client_key, client_key_len,
+                        NULL, 0 );
+    if (ret != 0) goto exit;
+
+    if( debug_level > 1 )
+    {
+      printf( "private key loaded: %s-%zu type: %i\n", mbedtls_pk_get_name(&pkey), mbedtls_pk_get_bitlen(&pkey), mbedtls_pk_get_type(&pkey) );
+    }
+
+    // Since this library is exclusively for datagram (UDP) connections
+    // if using a key, it must meet the CoAP Specification
+    // https://tools.ietf.org/html/rfc7252#section-9.1.3.3
+    // required is an Elliptic Curve key with 256 bits 'secp256r1' (aka 'prime256v1' in OpenSSL)
+    // TODO: - either pass validating the key into a separate function that can be called from node OR
+    //       - make an enum with operating modes that gets passed in and we can evaluate here
+    if( mbedtls_pk_get_type(&pkey) != MBEDTLS_PK_ECKEY &&
+        mbedtls_pk_get_bitlen(&pkey) != 256 )
+    {
+      Nan::ThrowError( "private key must be Elliptic-Curve type for DTLS and CoAP (see https://tools.ietf.org/html/rfc7252#section-9.1.3.3)" );
+      return;
+    }
+  }
+
+  ret = mbedtls_ssl_conf_own_cert(&conf, &clicert, &pkey);
+  if (ret != 0) goto exit;
 
   if ((NULL != ident) && (NULL != psk)) {
     ret = mbedtls_ssl_conf_psk(&conf, (const unsigned char*)psk, psk_len, (const unsigned char*) ident, ident_len);
@@ -246,7 +285,8 @@ int DtlsClientSocket::send_encrypted(const unsigned char *buf, size_t len) {
     Nan::CopyBuffer((char *)buf, len).ToLocalChecked()
   };
   v8::Local<v8::Function> sendCallbackDirect = send_cb->GetFunction();
-  sendCallbackDirect->Call(Nan::GetCurrentContext()->Global(), 1, argv);
+  v8::Local<v8::Context> context = Nan::GetCurrentContext();
+  sendCallbackDirect->Call(context, Nan::GetCurrentContext()->Global(), 1, argv);
   return len;
 }
 
@@ -345,7 +385,8 @@ int DtlsClientSocket::step() {
   if (ssl_context.state == MBEDTLS_SSL_HANDSHAKE_OVER) {
     // this should only be called once when we first finish the handshake
     v8::Local<v8::Function> handshakeCallbackDirect = handshake_cb->GetFunction();
-    handshakeCallbackDirect->Call(Nan::GetCurrentContext()->Global(), 0, NULL);
+    v8::Local<v8::Context> context = Nan::GetCurrentContext();
+    handshakeCallbackDirect->Call(context, Nan::GetCurrentContext()->Global(), 0, NULL);
   }
   return 0;
 }
@@ -366,7 +407,8 @@ void DtlsClientSocket::error(int ret) {
     Nan::New(error_buf).ToLocalChecked()
   };
   v8::Local<v8::Function> errorCallbackDirect = error_cb->GetFunction();
-  errorCallbackDirect->Call(Nan::GetCurrentContext()->Global(), 2, argv);
+  v8::Local<v8::Context> context = Nan::GetCurrentContext();
+  errorCallbackDirect->Call(context, Nan::GetCurrentContext()->Global(), 2, argv);
 }
 
 void DtlsClientSocket::store_data(const unsigned char *buf, size_t len) {

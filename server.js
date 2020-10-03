@@ -3,6 +3,7 @@
 var dgram = require('dgram');
 var fs = require('fs');
 var EventEmitter = require('events').EventEmitter;
+var VerifyModes = require('./dtls_options').VerifyModes;
 
 var DtlsSocket = require('./socket');
 var mbed = require('./build/Release/node_mbed_dtls');
@@ -18,12 +19,12 @@ class DtlsServer extends EventEmitter {
       throw "Parameter options is not set";
     }
 
-    if (options.key == undefined) {
-      throw "Parameter 'key' is not set";
+    if (options.key == undefined && options.identityPskCallback == undefined) {
+      throw "You need to define either a 'key' or an 'identityPskCalback' for PSK mode";
     }
 
-    if (options.identityPskCallback == undefined) {
-      throw "Parameter 'identityPskCallback' is not set";
+    if(options.type == undefined) {
+      options.type = 'udp4';
     }
 
     this.options = Object.assign({
@@ -31,7 +32,7 @@ class DtlsServer extends EventEmitter {
     }, options);
 
     this.sockets = {};
-    this.dgramSocket = dgram.createSocket('udp4');
+    this.dgramSocket = dgram.createSocket(options.type);
     this._onMessage = this._onMessage.bind(this);
     this.listening = false;
 
@@ -48,14 +49,60 @@ class DtlsServer extends EventEmitter {
       this._socketClosed();
     });
 
-    let key = Buffer.isBuffer(options.key) ? options.key : fs.readFileSync(options.key);
-    // likely a PEM encoded key, add null terminating byte
-    // 0x2d = '-'
-    if (key[0] === 0x2d && key[key.length - 1] !== 0) {
-      key = Buffer.concat([key, new Buffer([0])]);
+    let key = null;
+    if( options.key )
+    {
+      key = Buffer.isBuffer(options.key) ? options.key : fs.readFileSync(options.key);
+      // likely a PEM encoded key, add null terminating byte
+      // 0x2d = '-'
+      if (key[0] === 0x2d && key[key.length - 1] !== 0) {
+        key = Buffer.concat([key, new Buffer([0])]);
+      }
     }
 
-    this.mbedServer = new mbed.DtlsServer(key, options.identityPskCallback, options.debug);
+    let cert = null;
+    if( options.cert )
+    {
+      cert = Buffer.isBuffer(options.cert) ? options.cert : fs.readFileSync(options.cert);
+      // likely a PEM encoded cert, add null terminating byte
+      // 0x2d = '-'
+      if (cert[0] === 0x2d && cert[cert.length - 1] !== 0) {
+        cert = Buffer.concat([cert, new Buffer([0])]);
+      }
+    }
+
+    let ca_cert = null;
+    if( options.ca_cert )
+    {
+      ca_cert = Buffer.isBuffer( options.ca_cert ) ? options.ca_cert : fs.readFileSync( options.ca_cert );
+      // likely a PEM encoded cert, add null terminating byte
+      // 0x2d = '-'
+      if (ca_cert[0] === 0x2d && ca_cert[ca_cert.length - 1] !== 0) {
+        ca_cert = Buffer.concat([ca_cert, new Buffer([0])]);
+      }
+    }
+
+    if( ca_cert )
+    {
+      if( options.verify_mode == undefined )
+        throw "when using a certificate you should define options.verify_mode";
+
+      if( options.verify_mode < VerifyModes.None || options.verify_mode > VerifyModes.Required )
+      {
+        throw "options.verify_mode needs to be one of NONE, OPTIONAL or REQUIRED";
+      }
+    }
+    else if ( cert )
+    {
+      if( options.verify_mode == undefined )
+        options.verify_mode = VerifyModes.Optional;
+    }
+    else
+    {
+      options.verify_mode = VerifyModes.None;
+    }
+
+    this.mbedServer = new mbed.DtlsServer(key, cert, options.identityPskCallback, ca_cert, options.verify_mode, options.debug);
     if (options.handshakeTimeoutMin) {
       this.mbedServer.handshakeTimeoutMin = options.handshakeTimeoutMin;
     }
