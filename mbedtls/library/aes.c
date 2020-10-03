@@ -1,14 +1,8 @@
 /*
  *  FIPS-197 compliant AES implementation
  *
- *  Copyright The Mbed TLS Contributors
- *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
- *
- *  This file is provided under the Apache License 2.0, or the
- *  GNU General Public License v2.0 or later.
- *
- *  **********
- *  Apache License 2.0:
+ *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
+ *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
  *  not use this file except in compliance with the License.
@@ -22,26 +16,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  **********
- *
- *  **********
- *  GNU General Public License v2.0 or later:
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- *  **********
+ *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 /*
  *  The AES block cipher was designed by Vincent Rijmen and Joan Daemen.
@@ -80,12 +55,6 @@
 #endif /* MBEDTLS_SELF_TEST */
 
 #if !defined(MBEDTLS_AES_ALT)
-
-/* Parameter validation macros based on platform_util.h */
-#define AES_VALIDATE_RET( cond )    \
-    MBEDTLS_INTERNAL_VALIDATE_RET( cond, MBEDTLS_ERR_AES_BAD_INPUT_DATA )
-#define AES_VALIDATE( cond )        \
-    MBEDTLS_INTERNAL_VALIDATE( cond )
 
 /*
  * 32-bit integer manipulation macros (little endian)
@@ -420,9 +389,9 @@ static uint32_t RCON[10];
 /*
  * Tables generation code
  */
-#define ROTL8(x) ( ( (x) << 8 ) & 0xFFFFFFFF ) | ( (x) >> 24 )
-#define XTIME(x) ( ( (x) << 1 ) ^ ( ( (x) & 0x80 ) ? 0x1B : 0x00 ) )
-#define MUL(x,y) ( ( (x) && (y) ) ? pow[(log[(x)]+log[(y)]) % 255] : 0 )
+#define ROTL8(x) ( ( x << 8 ) & 0xFFFFFFFF ) | ( x >> 24 )
+#define XTIME(x) ( ( x << 1 ) ^ ( ( x & 0x80 ) ? 0x1B : 0x00 ) )
+#define MUL(x,y) ( ( x && y ) ? pow[(log[x]+log[y]) % 255] : 0 )
 
 static int aes_init_done = 0;
 
@@ -542,8 +511,6 @@ static void aes_gen_tables( void )
 
 void mbedtls_aes_init( mbedtls_aes_context *ctx )
 {
-    AES_VALIDATE( ctx != NULL );
-
     memset( ctx, 0, sizeof( mbedtls_aes_context ) );
 }
 
@@ -558,17 +525,12 @@ void mbedtls_aes_free( mbedtls_aes_context *ctx )
 #if defined(MBEDTLS_CIPHER_MODE_XTS)
 void mbedtls_aes_xts_init( mbedtls_aes_xts_context *ctx )
 {
-    AES_VALIDATE( ctx != NULL );
-
     mbedtls_aes_init( &ctx->crypt );
     mbedtls_aes_init( &ctx->tweak );
 }
 
 void mbedtls_aes_xts_free( mbedtls_aes_xts_context *ctx )
 {
-    if( ctx == NULL )
-        return;
-
     mbedtls_aes_free( &ctx->crypt );
     mbedtls_aes_free( &ctx->tweak );
 }
@@ -584,8 +546,14 @@ int mbedtls_aes_setkey_enc( mbedtls_aes_context *ctx, const unsigned char *key,
     unsigned int i;
     uint32_t *RK;
 
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( key != NULL );
+#if !defined(MBEDTLS_AES_ROM_TABLES)
+    if( aes_init_done == 0 )
+    {
+        aes_gen_tables();
+        aes_init_done = 1;
+
+    }
+#endif
 
     switch( keybits )
     {
@@ -594,14 +562,6 @@ int mbedtls_aes_setkey_enc( mbedtls_aes_context *ctx, const unsigned char *key,
         case 256: ctx->nr = 14; break;
         default : return( MBEDTLS_ERR_AES_INVALID_KEY_LENGTH );
     }
-
-#if !defined(MBEDTLS_AES_ROM_TABLES)
-    if( aes_init_done == 0 )
-    {
-        aes_gen_tables();
-        aes_init_done = 1;
-    }
-#endif
 
 #if defined(MBEDTLS_PADLOCK_C) && defined(MBEDTLS_PADLOCK_ALIGN16)
     if( aes_padlock_ace == -1 )
@@ -702,9 +662,6 @@ int mbedtls_aes_setkey_dec( mbedtls_aes_context *ctx, const unsigned char *key,
     uint32_t *RK;
     uint32_t *SK;
 
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( key != NULL );
-
     mbedtls_aes_init( &cty );
 
 #if defined(MBEDTLS_PADLOCK_C) && defined(MBEDTLS_PADLOCK_ALIGN16)
@@ -795,9 +752,6 @@ int mbedtls_aes_xts_setkey_enc( mbedtls_aes_xts_context *ctx,
     const unsigned char *key1, *key2;
     unsigned int key1bits, key2bits;
 
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( key != NULL );
-
     ret = mbedtls_aes_xts_decode_keys( key, keybits, &key1, &key1bits,
                                        &key2, &key2bits );
     if( ret != 0 )
@@ -820,9 +774,6 @@ int mbedtls_aes_xts_setkey_dec( mbedtls_aes_xts_context *ctx,
     const unsigned char *key1, *key2;
     unsigned int key1bits, key2bits;
 
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( key != NULL );
-
     ret = mbedtls_aes_xts_decode_keys( key, keybits, &key1, &key1bits,
                                        &key2, &key2bits );
     if( ret != 0 )
@@ -840,53 +791,51 @@ int mbedtls_aes_xts_setkey_dec( mbedtls_aes_xts_context *ctx,
 
 #endif /* !MBEDTLS_AES_SETKEY_DEC_ALT */
 
-#define AES_FROUND(X0,X1,X2,X3,Y0,Y1,Y2,Y3)                     \
-    do                                                          \
-    {                                                           \
-        (X0) = *RK++ ^ AES_FT0( ( (Y0)       ) & 0xFF ) ^       \
-                       AES_FT1( ( (Y1) >>  8 ) & 0xFF ) ^       \
-                       AES_FT2( ( (Y2) >> 16 ) & 0xFF ) ^       \
-                       AES_FT3( ( (Y3) >> 24 ) & 0xFF );        \
-                                                                \
-        (X1) = *RK++ ^ AES_FT0( ( (Y1)       ) & 0xFF ) ^       \
-                       AES_FT1( ( (Y2) >>  8 ) & 0xFF ) ^       \
-                       AES_FT2( ( (Y3) >> 16 ) & 0xFF ) ^       \
-                       AES_FT3( ( (Y0) >> 24 ) & 0xFF );        \
-                                                                \
-        (X2) = *RK++ ^ AES_FT0( ( (Y2)       ) & 0xFF ) ^       \
-                       AES_FT1( ( (Y3) >>  8 ) & 0xFF ) ^       \
-                       AES_FT2( ( (Y0) >> 16 ) & 0xFF ) ^       \
-                       AES_FT3( ( (Y1) >> 24 ) & 0xFF );        \
-                                                                \
-        (X3) = *RK++ ^ AES_FT0( ( (Y3)       ) & 0xFF ) ^       \
-                       AES_FT1( ( (Y0) >>  8 ) & 0xFF ) ^       \
-                       AES_FT2( ( (Y1) >> 16 ) & 0xFF ) ^       \
-                       AES_FT3( ( (Y2) >> 24 ) & 0xFF );        \
-    } while( 0 )
+#define AES_FROUND(X0,X1,X2,X3,Y0,Y1,Y2,Y3)         \
+{                                                   \
+    X0 = *RK++ ^ AES_FT0( ( Y0       ) & 0xFF ) ^   \
+                 AES_FT1( ( Y1 >>  8 ) & 0xFF ) ^   \
+                 AES_FT2( ( Y2 >> 16 ) & 0xFF ) ^   \
+                 AES_FT3( ( Y3 >> 24 ) & 0xFF );    \
+                                                    \
+    X1 = *RK++ ^ AES_FT0( ( Y1       ) & 0xFF ) ^   \
+                 AES_FT1( ( Y2 >>  8 ) & 0xFF ) ^   \
+                 AES_FT2( ( Y3 >> 16 ) & 0xFF ) ^   \
+                 AES_FT3( ( Y0 >> 24 ) & 0xFF );    \
+                                                    \
+    X2 = *RK++ ^ AES_FT0( ( Y2       ) & 0xFF ) ^   \
+                 AES_FT1( ( Y3 >>  8 ) & 0xFF ) ^   \
+                 AES_FT2( ( Y0 >> 16 ) & 0xFF ) ^   \
+                 AES_FT3( ( Y1 >> 24 ) & 0xFF );    \
+                                                    \
+    X3 = *RK++ ^ AES_FT0( ( Y3       ) & 0xFF ) ^   \
+                 AES_FT1( ( Y0 >>  8 ) & 0xFF ) ^   \
+                 AES_FT2( ( Y1 >> 16 ) & 0xFF ) ^   \
+                 AES_FT3( ( Y2 >> 24 ) & 0xFF );    \
+}
 
-#define AES_RROUND(X0,X1,X2,X3,Y0,Y1,Y2,Y3)                 \
-    do                                                      \
-    {                                                       \
-        (X0) = *RK++ ^ AES_RT0( ( (Y0)       ) & 0xFF ) ^   \
-                       AES_RT1( ( (Y3) >>  8 ) & 0xFF ) ^   \
-                       AES_RT2( ( (Y2) >> 16 ) & 0xFF ) ^   \
-                       AES_RT3( ( (Y1) >> 24 ) & 0xFF );    \
-                                                            \
-        (X1) = *RK++ ^ AES_RT0( ( (Y1)       ) & 0xFF ) ^   \
-                       AES_RT1( ( (Y0) >>  8 ) & 0xFF ) ^   \
-                       AES_RT2( ( (Y3) >> 16 ) & 0xFF ) ^   \
-                       AES_RT3( ( (Y2) >> 24 ) & 0xFF );    \
-                                                            \
-        (X2) = *RK++ ^ AES_RT0( ( (Y2)       ) & 0xFF ) ^   \
-                       AES_RT1( ( (Y1) >>  8 ) & 0xFF ) ^   \
-                       AES_RT2( ( (Y0) >> 16 ) & 0xFF ) ^   \
-                       AES_RT3( ( (Y3) >> 24 ) & 0xFF );    \
-                                                            \
-        (X3) = *RK++ ^ AES_RT0( ( (Y3)       ) & 0xFF ) ^   \
-                       AES_RT1( ( (Y2) >>  8 ) & 0xFF ) ^   \
-                       AES_RT2( ( (Y1) >> 16 ) & 0xFF ) ^   \
-                       AES_RT3( ( (Y0) >> 24 ) & 0xFF );    \
-    } while( 0 )
+#define AES_RROUND(X0,X1,X2,X3,Y0,Y1,Y2,Y3)         \
+{                                                   \
+    X0 = *RK++ ^ AES_RT0( ( Y0       ) & 0xFF ) ^   \
+                 AES_RT1( ( Y3 >>  8 ) & 0xFF ) ^   \
+                 AES_RT2( ( Y2 >> 16 ) & 0xFF ) ^   \
+                 AES_RT3( ( Y1 >> 24 ) & 0xFF );    \
+                                                    \
+    X1 = *RK++ ^ AES_RT0( ( Y1       ) & 0xFF ) ^   \
+                 AES_RT1( ( Y0 >>  8 ) & 0xFF ) ^   \
+                 AES_RT2( ( Y3 >> 16 ) & 0xFF ) ^   \
+                 AES_RT3( ( Y2 >> 24 ) & 0xFF );    \
+                                                    \
+    X2 = *RK++ ^ AES_RT0( ( Y2       ) & 0xFF ) ^   \
+                 AES_RT1( ( Y1 >>  8 ) & 0xFF ) ^   \
+                 AES_RT2( ( Y0 >> 16 ) & 0xFF ) ^   \
+                 AES_RT3( ( Y3 >> 24 ) & 0xFF );    \
+                                                    \
+    X3 = *RK++ ^ AES_RT0( ( Y3       ) & 0xFF ) ^   \
+                 AES_RT1( ( Y2 >>  8 ) & 0xFF ) ^   \
+                 AES_RT2( ( Y1 >> 16 ) & 0xFF ) ^   \
+                 AES_RT3( ( Y0 >> 24 ) & 0xFF );    \
+}
 
 /*
  * AES-ECB block encryption
@@ -942,18 +891,6 @@ int mbedtls_internal_aes_encrypt( mbedtls_aes_context *ctx,
     PUT_UINT32_LE( X1, output,  4 );
     PUT_UINT32_LE( X2, output,  8 );
     PUT_UINT32_LE( X3, output, 12 );
-
-    mbedtls_platform_zeroize( &X0, sizeof( X0 ) );
-    mbedtls_platform_zeroize( &X1, sizeof( X1 ) );
-    mbedtls_platform_zeroize( &X2, sizeof( X2 ) );
-    mbedtls_platform_zeroize( &X3, sizeof( X3 ) );
-
-    mbedtls_platform_zeroize( &Y0, sizeof( Y0 ) );
-    mbedtls_platform_zeroize( &Y1, sizeof( Y1 ) );
-    mbedtls_platform_zeroize( &Y2, sizeof( Y2 ) );
-    mbedtls_platform_zeroize( &Y3, sizeof( Y3 ) );
-
-    mbedtls_platform_zeroize( &RK, sizeof( RK ) );
 
     return( 0 );
 }
@@ -1023,18 +960,6 @@ int mbedtls_internal_aes_decrypt( mbedtls_aes_context *ctx,
     PUT_UINT32_LE( X2, output,  8 );
     PUT_UINT32_LE( X3, output, 12 );
 
-    mbedtls_platform_zeroize( &X0, sizeof( X0 ) );
-    mbedtls_platform_zeroize( &X1, sizeof( X1 ) );
-    mbedtls_platform_zeroize( &X2, sizeof( X2 ) );
-    mbedtls_platform_zeroize( &X3, sizeof( X3 ) );
-
-    mbedtls_platform_zeroize( &Y0, sizeof( Y0 ) );
-    mbedtls_platform_zeroize( &Y1, sizeof( Y1 ) );
-    mbedtls_platform_zeroize( &Y2, sizeof( Y2 ) );
-    mbedtls_platform_zeroize( &Y3, sizeof( Y3 ) );
-
-    mbedtls_platform_zeroize( &RK, sizeof( RK ) );
-
     return( 0 );
 }
 #endif /* !MBEDTLS_AES_DECRYPT_ALT */
@@ -1052,16 +977,10 @@ void mbedtls_aes_decrypt( mbedtls_aes_context *ctx,
  * AES-ECB block encryption/decryption
  */
 int mbedtls_aes_crypt_ecb( mbedtls_aes_context *ctx,
-                           int mode,
-                           const unsigned char input[16],
-                           unsigned char output[16] )
+                    int mode,
+                    const unsigned char input[16],
+                    unsigned char output[16] )
 {
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( input != NULL );
-    AES_VALIDATE_RET( output != NULL );
-    AES_VALIDATE_RET( mode == MBEDTLS_AES_ENCRYPT ||
-                      mode == MBEDTLS_AES_DECRYPT );
-
 #if defined(MBEDTLS_AESNI_C) && defined(MBEDTLS_HAVE_X86_64)
     if( mbedtls_aesni_has_support( MBEDTLS_AESNI_AES ) )
         return( mbedtls_aesni_crypt_ecb( ctx, mode, input, output ) );
@@ -1098,13 +1017,6 @@ int mbedtls_aes_crypt_cbc( mbedtls_aes_context *ctx,
 {
     int i;
     unsigned char temp[16];
-
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( mode == MBEDTLS_AES_ENCRYPT ||
-                      mode == MBEDTLS_AES_DECRYPT );
-    AES_VALIDATE_RET( iv != NULL );
-    AES_VALIDATE_RET( input != NULL );
-    AES_VALIDATE_RET( output != NULL );
 
     if( length % 16 )
         return( MBEDTLS_ERR_AES_INVALID_INPUT_LENGTH );
@@ -1231,13 +1143,6 @@ int mbedtls_aes_crypt_xts( mbedtls_aes_xts_context *ctx,
     unsigned char prev_tweak[16];
     unsigned char tmp[16];
 
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( mode == MBEDTLS_AES_ENCRYPT ||
-                      mode == MBEDTLS_AES_DECRYPT );
-    AES_VALIDATE_RET( data_unit != NULL );
-    AES_VALIDATE_RET( input != NULL );
-    AES_VALIDATE_RET( output != NULL );
-
     /* Data units must be at least 16 bytes long. */
     if( length < 16 )
         return MBEDTLS_ERR_AES_INVALID_INPUT_LENGTH;
@@ -1337,20 +1242,7 @@ int mbedtls_aes_crypt_cfb128( mbedtls_aes_context *ctx,
                        unsigned char *output )
 {
     int c;
-    size_t n;
-
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( mode == MBEDTLS_AES_ENCRYPT ||
-                      mode == MBEDTLS_AES_DECRYPT );
-    AES_VALIDATE_RET( iv_off != NULL );
-    AES_VALIDATE_RET( iv != NULL );
-    AES_VALIDATE_RET( input != NULL );
-    AES_VALIDATE_RET( output != NULL );
-
-    n = *iv_off;
-
-    if( n > 15 )
-        return( MBEDTLS_ERR_AES_BAD_INPUT_DATA );
+    size_t n = *iv_off;
 
     if( mode == MBEDTLS_AES_DECRYPT )
     {
@@ -1388,21 +1280,15 @@ int mbedtls_aes_crypt_cfb128( mbedtls_aes_context *ctx,
  * AES-CFB8 buffer encryption/decryption
  */
 int mbedtls_aes_crypt_cfb8( mbedtls_aes_context *ctx,
-                            int mode,
-                            size_t length,
-                            unsigned char iv[16],
-                            const unsigned char *input,
-                            unsigned char *output )
+                       int mode,
+                       size_t length,
+                       unsigned char iv[16],
+                       const unsigned char *input,
+                       unsigned char *output )
 {
     unsigned char c;
     unsigned char ov[17];
 
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( mode == MBEDTLS_AES_ENCRYPT ||
-                      mode == MBEDTLS_AES_DECRYPT );
-    AES_VALIDATE_RET( iv != NULL );
-    AES_VALIDATE_RET( input != NULL );
-    AES_VALIDATE_RET( output != NULL );
     while( length-- )
     {
         memcpy( ov, iv, 16 );
@@ -1435,18 +1321,7 @@ int mbedtls_aes_crypt_ofb( mbedtls_aes_context *ctx,
                            unsigned char *output )
 {
     int ret = 0;
-    size_t n;
-
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( iv_off != NULL );
-    AES_VALIDATE_RET( iv != NULL );
-    AES_VALIDATE_RET( input != NULL );
-    AES_VALIDATE_RET( output != NULL );
-
-    n = *iv_off;
-
-    if( n > 15 )
-        return( MBEDTLS_ERR_AES_BAD_INPUT_DATA );
+    size_t n = *iv_off;
 
     while( length-- )
     {
@@ -1481,16 +1356,7 @@ int mbedtls_aes_crypt_ctr( mbedtls_aes_context *ctx,
                        unsigned char *output )
 {
     int c, i;
-    size_t n;
-
-    AES_VALIDATE_RET( ctx != NULL );
-    AES_VALIDATE_RET( nc_off != NULL );
-    AES_VALIDATE_RET( nonce_counter != NULL );
-    AES_VALIDATE_RET( stream_block != NULL );
-    AES_VALIDATE_RET( input != NULL );
-    AES_VALIDATE_RET( output != NULL );
-
-    n = *nc_off;
+    size_t n = *nc_off;
 
     if ( n > 0x0F )
         return( MBEDTLS_ERR_AES_BAD_INPUT_DATA );

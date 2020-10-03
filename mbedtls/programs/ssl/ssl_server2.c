@@ -1,14 +1,8 @@
 /*
  *  SSL client with options
  *
- *  Copyright The Mbed TLS Contributors
- *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
- *
- *  This file is provided under the Apache License 2.0, or the
- *  GNU General Public License v2.0 or later.
- *
- *  **********
- *  Apache License 2.0:
+ *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
+ *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
  *  not use this file except in compliance with the License.
@@ -22,26 +16,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  **********
- *
- *  **********
- *  GNU General Public License v2.0 or later:
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- *  **********
+ *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 
 #if !defined(MBEDTLS_CONFIG_FILE)
@@ -61,9 +36,6 @@
 #define mbedtls_calloc    calloc
 #define mbedtls_fprintf    fprintf
 #define mbedtls_printf     printf
-#define mbedtls_exit            exit
-#define MBEDTLS_EXIT_SUCCESS    EXIT_SUCCESS
-#define MBEDTLS_EXIT_FAILURE    EXIT_FAILURE
 #endif
 
 #if !defined(MBEDTLS_ENTROPY_C) || \
@@ -74,7 +46,7 @@ int main( void )
     mbedtls_printf("MBEDTLS_ENTROPY_C and/or "
            "MBEDTLS_SSL_TLS_C and/or MBEDTLS_SSL_SRV_C and/or "
            "MBEDTLS_NET_C and/or MBEDTLS_CTR_DRBG_C and/or not defined.\n");
-    mbedtls_exit( 0 );
+    return( 0 );
 }
 #else
 
@@ -213,10 +185,8 @@ int main( void )
 #define USAGE_IO \
     "    ca_file=%%s          The single file containing the top-level CA(s) you fully trust\n" \
     "                        default: \"\" (pre-loaded)\n" \
-    "                        use \"none\" to skip loading any top-level CAs.\n" \
     "    ca_path=%%s          The path containing the top-level CA(s) you fully trust\n" \
     "                        default: \"\" (pre-loaded) (overrides ca_file)\n" \
-    "                        use \"none\" to skip loading any top-level CAs.\n" \
     "    crt_file=%%s         Your own cert and chain (in bottom to top order, top may be omitted)\n" \
     "                        default: see note after key_file2\n" \
     "    key_file=%%s         default: see note after key_file2\n" \
@@ -250,12 +220,8 @@ int main( void )
 #endif /* MBEDTLS_SSL_ASYNC_PRIVATE */
 
 #if defined(MBEDTLS_KEY_EXCHANGE__SOME__PSK_ENABLED)
-#define USAGE_PSK                                                       \
-    "    psk=%%s              default: \"\" (in hex, without 0x)\n"     \
-    "    psk_list=%%s         default: \"\"\n"                          \
-    "                          A list of (PSK identity, PSK value) pairs.\n" \
-    "                          The PSK values are in hex, without 0x.\n" \
-    "                          id1,psk1[,id2,psk2[,...]]\n"             \
+#define USAGE_PSK                                                   \
+    "    psk=%%s              default: \"\" (in hex, without 0x)\n" \
     "    psk_identity=%%s     default: \"Client_identity\"\n"
 #else
 #define USAGE_PSK ""
@@ -278,14 +244,8 @@ int main( void )
 #endif /* MBEDTLS_SSL_CACHE_C */
 
 #if defined(SNI_OPTION)
-#if defined(MBEDTLS_X509_CRL_PARSE_C)
-#define SNI_CRL              ",crl"
-#else
-#define SNI_CRL              ""
-#endif
-
 #define USAGE_SNI                                                           \
-    "    sni=%%s              name1,cert1,key1,ca1"SNI_CRL",auth1[,...]\n"  \
+    "    sni=%%s              name1,cert1,key1,ca1,crl1,auth1[,...]\n"  \
     "                        default: disabled\n"
 #else
 #define USAGE_SNI ""
@@ -391,9 +351,7 @@ int main( void )
 #define USAGE_CURVES ""
 #endif
 
-/* USAGE is arbitrarily split to stay under the portable string literal
- * length limit: 4095 bytes in C99. */
-#define USAGE1 \
+#define USAGE \
     "\n usage: ssl_server2 param=<>...\n"                   \
     "\n acceptable parameters:\n"                           \
     "    server_addr=%%s      default: (all interfaces)\n"  \
@@ -414,8 +372,7 @@ int main( void )
     USAGE_COOKIES                                           \
     USAGE_ANTI_REPLAY                                       \
     USAGE_BADMAC_LIMIT                                      \
-    "\n"
-#define USAGE2 \
+    "\n"                                                    \
     "    auth_mode=%%s        default: (library default: none)\n"      \
     "                        options: none, optional, required\n" \
     "    cert_req_ca_list=%%d default: 1 (send ca list)\n"  \
@@ -426,8 +383,7 @@ int main( void )
     "\n"                                                    \
     USAGE_PSK                                               \
     USAGE_ECJPAKE                                           \
-    "\n"
-#define USAGE3 \
+    "\n"                                                    \
     "    allow_legacy=%%d     default: (library default: no)\n"      \
     USAGE_RENEGO                                            \
     "    exchanges=%%d        default: 1\n"                 \
@@ -440,8 +396,7 @@ int main( void )
     USAGE_EMS                                               \
     USAGE_ETM                                               \
     USAGE_CURVES                                            \
-    "\n"
-#define USAGE4 \
+    "\n"                                                    \
     "    arc4=%%d             default: (library default: 0)\n" \
     "    allow_sha1=%%d       default: 0\n"                             \
     "    min_version=%%s      default: (library default: tls1)\n"       \
@@ -453,11 +408,8 @@ int main( void )
     "                                in order from ssl3 to tls1_2\n"    \
     "                                default: all enabled\n"            \
     "    force_ciphersuite=<name>    default: all enabled\n"            \
-    "    query_config=<name>         return 0 if the specified\n"       \
-    "                                configuration macro is defined and 1\n"  \
-    "                                otherwise. The expansion of the macro\n" \
-    "                                is printed if it is defined\n"     \
     " acceptable ciphersuite names:\n"
+
 
 #define ALPN_LIST_SIZE  10
 #define CURVE_LIST_SIZE 20
@@ -473,7 +425,6 @@ int main( void )
     (out_be)[(i) + 6] = (unsigned char)( ( (in_le) >> 8  ) & 0xFF );    \
     (out_be)[(i) + 7] = (unsigned char)( ( (in_le) >> 0  ) & 0xFF );    \
 }
-
 
 /*
  * global options
@@ -537,8 +488,6 @@ struct options
     int dgram_packing;          /* allow/forbid datagram packing            */
     int badmac_limit;           /* Limit of records with bad MAC            */
 } opt;
-
-int query_config( const char *config );
 
 static void my_debug( void *ctx, int level,
                       const char *file, int line,
@@ -612,14 +561,11 @@ static int get_auth_mode( const char *s )
  * Used by sni_parse and psk_parse to handle coma-separated lists
  */
 #define GET_ITEM( dst )         \
-    do                          \
-    {                           \
-        (dst) = p;              \
-        while( *p != ',' )      \
-            if( ++p > end )     \
-                goto error;     \
-        *p++ = '\0';            \
-    } while( 0 )
+    dst = p;                    \
+    while( *p != ',' )          \
+        if( ++p > end )         \
+            goto error;         \
+    *p++ = '\0';
 
 #if defined(SNI_OPTION)
 typedef struct _sni_entry sni_entry;
@@ -648,10 +594,10 @@ void sni_free( sni_entry *head )
 
         mbedtls_x509_crt_free( cur->ca );
         mbedtls_free( cur->ca );
-#if defined(MBEDTLS_X509_CRL_PARSE_C)
+
         mbedtls_x509_crl_free( cur->crl );
         mbedtls_free( cur->crl );
-#endif
+
         next = cur->next;
         mbedtls_free( cur );
         cur = next;
@@ -670,10 +616,7 @@ sni_entry *sni_parse( char *sni_string )
     sni_entry *cur = NULL, *new = NULL;
     char *p = sni_string;
     char *end = p;
-    char *crt_file, *key_file, *ca_file, *auth_str;
-#if defined(MBEDTLS_X509_CRL_PARSE_C)
-    char *crl_file;
-#endif
+    char *crt_file, *key_file, *ca_file, *crl_file, *auth_str;
 
     while( *end != '\0' )
         ++end;
@@ -691,9 +634,7 @@ sni_entry *sni_parse( char *sni_string )
         GET_ITEM( crt_file );
         GET_ITEM( key_file );
         GET_ITEM( ca_file );
-#if defined(MBEDTLS_X509_CRL_PARSE_C)
         GET_ITEM( crl_file );
-#endif
         GET_ITEM( auth_str );
 
         if( ( new->cert = mbedtls_calloc( 1, sizeof( mbedtls_x509_crt ) ) ) == NULL ||
@@ -718,7 +659,6 @@ sni_entry *sni_parse( char *sni_string )
                 goto error;
         }
 
-#if defined(MBEDTLS_X509_CRL_PARSE_C)
         if( strcmp( crl_file, "-" ) != 0 )
         {
             if( ( new->crl = mbedtls_calloc( 1, sizeof( mbedtls_x509_crl ) ) ) == NULL )
@@ -729,7 +669,6 @@ sni_entry *sni_parse( char *sni_string )
             if( mbedtls_x509_crl_parse_file( new->crl, crl_file ) != 0 )
                 goto error;
         }
-#endif
 
         if( strcmp( auth_str, "-" ) != 0 )
         {
@@ -783,18 +722,15 @@ int sni_callback( void *p_info, mbedtls_ssl_context *ssl,
 
 #if defined(MBEDTLS_KEY_EXCHANGE__SOME__PSK_ENABLED)
 
-#define HEX2NUM( c )                        \
-    do                                      \
-    {                                       \
-        if( (c) >= '0' && (c) <= '9' )      \
-            (c) -= '0';                     \
-        else if( (c) >= 'a' && (c) <= 'f' ) \
-            (c) -= 'a' - 10;                \
-        else if( (c) >= 'A' && (c) <= 'F' ) \
-            (c) -= 'A' - 10;                \
-        else                                \
-            return( -1 );                   \
-    } while( 0 )
+#define HEX2NUM( c )                    \
+        if( c >= '0' && c <= '9' )      \
+            c -= '0';                   \
+        else if( c >= 'a' && c <= 'f' ) \
+            c -= 'a' - 10;              \
+        else if( c >= 'A' && c <= 'F' ) \
+            c -= 'A' - 10;              \
+        else                            \
+            return( -1 );
 
 /*
  * Convert a hex string to bytes.
@@ -1353,10 +1289,7 @@ int main( int argc, char *argv[] )
         if( ret == 0 )
             ret = 1;
 
-        mbedtls_printf( USAGE1 );
-        mbedtls_printf( USAGE2 );
-        mbedtls_printf( USAGE3 );
-        mbedtls_printf( USAGE4 );
+        mbedtls_printf( USAGE );
 
         list = mbedtls_ssl_list_ciphersuites();
         while( *list )
@@ -1804,10 +1737,6 @@ int main( int argc, char *argv[] )
         {
             opt.sni = q;
         }
-        else if( strcmp( p, "query_config" ) == 0 )
-        {
-            mbedtls_exit( query_config( q ) );
-        }
         else
             goto usage;
     }
@@ -2045,22 +1974,20 @@ int main( int argc, char *argv[] )
     mbedtls_printf( "  . Loading the CA root certificate ..." );
     fflush( stdout );
 
-    if( strcmp( opt.ca_path, "none" ) == 0 ||
-        strcmp( opt.ca_file, "none" ) == 0 )
-    {
-        ret = 0;
-    }
-    else
 #if defined(MBEDTLS_FS_IO)
     if( strlen( opt.ca_path ) )
-        ret = mbedtls_x509_crt_parse_path( &cacert, opt.ca_path );
+        if( strcmp( opt.ca_path, "none" ) == 0 )
+            ret = 0;
+        else
+            ret = mbedtls_x509_crt_parse_path( &cacert, opt.ca_path );
     else if( strlen( opt.ca_file ) )
-        ret = mbedtls_x509_crt_parse_file( &cacert, opt.ca_file );
+        if( strcmp( opt.ca_file, "none" ) == 0 )
+            ret = 0;
+        else
+            ret = mbedtls_x509_crt_parse_file( &cacert, opt.ca_file );
     else
 #endif
 #if defined(MBEDTLS_CERTS_C)
-    {
-#if defined(MBEDTLS_PEM_PARSE_C)
         for( i = 0; mbedtls_test_cas[i] != NULL; i++ )
         {
             ret = mbedtls_x509_crt_parse( &cacert,
@@ -2069,23 +1996,12 @@ int main( int argc, char *argv[] )
             if( ret != 0 )
                 break;
         }
-        if( ret == 0 )
-#endif /* MBEDTLS_PEM_PARSE_C */
-        for( i = 0; mbedtls_test_cas_der[i] != NULL; i++ )
-        {
-            ret = mbedtls_x509_crt_parse_der( &cacert,
-                         (const unsigned char *) mbedtls_test_cas_der[i],
-                         mbedtls_test_cas_der_len[i] );
-            if( ret != 0 )
-                break;
-        }
-    }
 #else
     {
         ret = 1;
-        mbedtls_printf( "MBEDTLS_CERTS_C not defined." );
+        mbedtls_printf("MBEDTLS_CERTS_C not defined.");
     }
-#endif /* MBEDTLS_CERTS_C */
+#endif
     if( ret < 0 )
     {
         mbedtls_printf( " failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", -ret );
@@ -3250,7 +3166,7 @@ exit:
     if( ret < 0 )
         ret = 1;
 
-    mbedtls_exit( ret );
+    return( ret );
 }
 #endif /* MBEDTLS_BIGNUM_C && MBEDTLS_ENTROPY_C && MBEDTLS_SSL_TLS_C &&
           MBEDTLS_SSL_SRV_C && MBEDTLS_NET_C && MBEDTLS_RSA_C &&

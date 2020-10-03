@@ -1,14 +1,8 @@
 /*
  *  Blowfish implementation
  *
- *  Copyright The Mbed TLS Contributors
- *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
- *
- *  This file is provided under the Apache License 2.0, or the
- *  GNU General Public License v2.0 or later.
- *
- *  **********
- *  Apache License 2.0:
+ *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
+ *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
  *  not use this file except in compliance with the License.
@@ -22,26 +16,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  **********
- *
- *  **********
- *  GNU General Public License v2.0 or later:
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- *  **********
+ *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 /*
  *  The Blowfish block cipher was designed by Bruce Schneier in 1993.
@@ -64,12 +39,6 @@
 #include <string.h>
 
 #if !defined(MBEDTLS_BLOWFISH_ALT)
-
-/* Parameter validation macros */
-#define BLOWFISH_VALIDATE_RET( cond )                                       \
-    MBEDTLS_INTERNAL_VALIDATE_RET( cond, MBEDTLS_ERR_BLOWFISH_BAD_INPUT_DATA )
-#define BLOWFISH_VALIDATE( cond )                                           \
-    MBEDTLS_INTERNAL_VALIDATE( cond )
 
 /*
  * 32-bit integer manipulation macros (big endian)
@@ -184,7 +153,6 @@ static void blowfish_dec( mbedtls_blowfish_context *ctx, uint32_t *xl, uint32_t 
 
 void mbedtls_blowfish_init( mbedtls_blowfish_context *ctx )
 {
-    BLOWFISH_VALIDATE( ctx != NULL );
     memset( ctx, 0, sizeof( mbedtls_blowfish_context ) );
 }
 
@@ -199,20 +167,16 @@ void mbedtls_blowfish_free( mbedtls_blowfish_context *ctx )
 /*
  * Blowfish key schedule
  */
-int mbedtls_blowfish_setkey( mbedtls_blowfish_context *ctx,
-                             const unsigned char *key,
-                             unsigned int keybits )
+int mbedtls_blowfish_setkey( mbedtls_blowfish_context *ctx, const unsigned char *key,
+                     unsigned int keybits )
 {
     unsigned int i, j, k;
     uint32_t data, datal, datar;
-    BLOWFISH_VALIDATE_RET( ctx != NULL );
-    BLOWFISH_VALIDATE_RET( key != NULL );
 
-    if( keybits < MBEDTLS_BLOWFISH_MIN_KEY_BITS    ||
-        keybits > MBEDTLS_BLOWFISH_MAX_KEY_BITS    ||
-        keybits % 8 != 0 )
+    if( keybits < MBEDTLS_BLOWFISH_MIN_KEY_BITS || keybits > MBEDTLS_BLOWFISH_MAX_KEY_BITS ||
+        ( keybits % 8 ) )
     {
-        return( MBEDTLS_ERR_BLOWFISH_BAD_INPUT_DATA );
+        return( MBEDTLS_ERR_BLOWFISH_INVALID_KEY_LENGTH );
     }
 
     keybits >>= 3;
@@ -267,11 +231,6 @@ int mbedtls_blowfish_crypt_ecb( mbedtls_blowfish_context *ctx,
                     unsigned char output[MBEDTLS_BLOWFISH_BLOCKSIZE] )
 {
     uint32_t X0, X1;
-    BLOWFISH_VALIDATE_RET( ctx != NULL );
-    BLOWFISH_VALIDATE_RET( mode == MBEDTLS_BLOWFISH_ENCRYPT ||
-                           mode == MBEDTLS_BLOWFISH_DECRYPT );
-    BLOWFISH_VALIDATE_RET( input  != NULL );
-    BLOWFISH_VALIDATE_RET( output != NULL );
 
     GET_UINT32_BE( X0, input,  0 );
     GET_UINT32_BE( X1, input,  4 );
@@ -304,12 +263,6 @@ int mbedtls_blowfish_crypt_cbc( mbedtls_blowfish_context *ctx,
 {
     int i;
     unsigned char temp[MBEDTLS_BLOWFISH_BLOCKSIZE];
-    BLOWFISH_VALIDATE_RET( ctx != NULL );
-    BLOWFISH_VALIDATE_RET( mode == MBEDTLS_BLOWFISH_ENCRYPT ||
-                           mode == MBEDTLS_BLOWFISH_DECRYPT );
-    BLOWFISH_VALIDATE_RET( iv != NULL );
-    BLOWFISH_VALIDATE_RET( length == 0 || input  != NULL );
-    BLOWFISH_VALIDATE_RET( length == 0 || output != NULL );
 
     if( length % MBEDTLS_BLOWFISH_BLOCKSIZE )
         return( MBEDTLS_ERR_BLOWFISH_INVALID_INPUT_LENGTH );
@@ -364,19 +317,7 @@ int mbedtls_blowfish_crypt_cfb64( mbedtls_blowfish_context *ctx,
                        unsigned char *output )
 {
     int c;
-    size_t n;
-
-    BLOWFISH_VALIDATE_RET( ctx != NULL );
-    BLOWFISH_VALIDATE_RET( mode == MBEDTLS_BLOWFISH_ENCRYPT ||
-                           mode == MBEDTLS_BLOWFISH_DECRYPT );
-    BLOWFISH_VALIDATE_RET( iv     != NULL );
-    BLOWFISH_VALIDATE_RET( iv_off != NULL );
-    BLOWFISH_VALIDATE_RET( length == 0 || input  != NULL );
-    BLOWFISH_VALIDATE_RET( length == 0 || output != NULL );
-
-    n = *iv_off;
-    if( n >= 8 )
-        return( MBEDTLS_ERR_BLOWFISH_BAD_INPUT_DATA );
+    size_t n = *iv_off;
 
     if( mode == MBEDTLS_BLOWFISH_DECRYPT )
     {
@@ -424,17 +365,7 @@ int mbedtls_blowfish_crypt_ctr( mbedtls_blowfish_context *ctx,
                        unsigned char *output )
 {
     int c, i;
-    size_t n;
-    BLOWFISH_VALIDATE_RET( ctx != NULL );
-    BLOWFISH_VALIDATE_RET( nonce_counter != NULL );
-    BLOWFISH_VALIDATE_RET( stream_block  != NULL );
-    BLOWFISH_VALIDATE_RET( nc_off != NULL );
-    BLOWFISH_VALIDATE_RET( length == 0 || input  != NULL );
-    BLOWFISH_VALIDATE_RET( length == 0 || output != NULL );
-
-    n = *nc_off;
-    if( n >= 8 )
-        return( MBEDTLS_ERR_BLOWFISH_BAD_INPUT_DATA );
+    size_t n = *nc_off;
 
     while( length-- )
     {

@@ -1,15 +1,7 @@
-#!/usr/bin/env python3
-
 # Greentea host test script for Mbed TLS on-target test suite testing.
 #
-# Copyright The Mbed TLS Contributors
-# SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
-#
-# This file is provided under the Apache License 2.0, or the
-# GNU General Public License v2.0 or later.
-#
-# **********
-# Apache License 2.0:
+# Copyright (C) 2018, Arm Limited, All Rights Reserved
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -23,26 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# **********
-#
-# **********
-# GNU General Public License v2.0 or later:
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License along
-# with this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#
-# **********
+# This file is part of Mbed TLS (https://tls.mbed.org)
 
 
 """
@@ -64,8 +37,7 @@ https://github.com/ARMmbed/greentea
 import re
 import os
 import binascii
-
-from mbed_host_tests import BaseHostTest, event_callback # pylint: disable=import-error
+from mbed_host_tests import BaseHostTest, event_callback
 
 
 class TestDataParserError(Exception):
@@ -73,7 +45,7 @@ class TestDataParserError(Exception):
     pass
 
 
-class TestDataParser:
+class TestDataParser(object):
     """
     Parses test name, dependencies, test function name and test parameters
     from the data file.
@@ -103,10 +75,11 @@ class TestDataParser:
         :param split_char: Split character
         :return: List of splits
         """
-        split_colon_fn = lambda x: re.sub(r'\\' + split_char, split_char, x)
         if len(split_char) > 1:
             raise ValueError('Expected split character. Found string!')
-        out = list(map(split_colon_fn, re.split(r'(?<!\\)' + split_char, inp_str)))
+        out = re.sub(r'(\\.)|' + split_char,
+                     lambda m: m.group(1) or '\n', inp_str,
+                     len(inp_str)).split('\n')
         out = [x for x in out if x]
         return out
 
@@ -126,11 +99,11 @@ class TestDataParser:
 
             # Check dependencies
             dependencies = []
-            line = next(data_f).strip()
+            line = data_f.next().strip()
             match = re.search('depends_on:(.*)', line)
             if match:
                 dependencies = [int(x) for x in match.group(1).split(':')]
-                line = next(data_f).strip()
+                line = data_f.next().strip()
 
             # Read test vectors
             line = line.replace('\\n', '\n')
@@ -139,10 +112,10 @@ class TestDataParser:
             args = parts[1:]
             args_count = len(args)
             if args_count % 2 != 0:
-                err_str_fmt = "Number of test arguments({}) should be even: {}"
-                raise TestDataParserError(err_str_fmt.format(args_count, line))
+                raise TestDataParserError("Number of test arguments should "
+                                          "be even: %s" % line)
             grouped_args = [(args[i * 2], args[(i * 2) + 1])
-                            for i in range(int(len(args)/2))]
+                            for i in range(len(args)/2)]
             self.tests.append((name, function_name, dependencies,
                                grouped_args))
 
@@ -190,7 +163,6 @@ class MbedTlsTest(BaseHostTest):
         self.tests = []
         self.test_index = -1
         self.dep_index = 0
-        self.suite_passed = True
         self.error_str = dict()
         self.error_str[self.DEPENDENCY_SUPPORTED] = \
             'DEPENDENCY_SUPPORTED'
@@ -213,7 +185,7 @@ class MbedTlsTest(BaseHostTest):
         binary_path = self.get_config_item('image_path')
         script_dir = os.path.split(os.path.abspath(__file__))[0]
         suite_name = os.path.splitext(os.path.basename(binary_path))[0]
-        data_file = ".".join((suite_name, 'datax'))
+        data_file = ".".join((suite_name, 'data'))
         data_file = os.path.join(script_dir, '..', 'mbedtls',
                                  suite_name, data_file)
         if os.path.exists(data_file):
@@ -287,22 +259,22 @@ class MbedTlsTest(BaseHostTest):
             data_bytes += bytearray(dependencies)
         data_bytes += bytearray([function_id, len(parameters)])
         for typ, param in parameters:
-            if typ in ('int', 'exp'):
-                i = int(param, 0)
-                data_bytes += b'I' if typ == 'int' else b'E'
+            if typ == 'int' or typ == 'exp':
+                i = int(param)
+                data_bytes += 'I' if typ == 'int' else 'E'
                 self.align_32bit(data_bytes)
                 data_bytes += self.int32_to_big_endian_bytes(i)
             elif typ == 'char*':
                 param = param.strip('"')
                 i = len(param) + 1  # + 1 for null termination
-                data_bytes += b'S'
+                data_bytes += 'S'
                 self.align_32bit(data_bytes)
                 data_bytes += self.int32_to_big_endian_bytes(i)
-                data_bytes += bytearray(param, encoding='ascii')
-                data_bytes += b'\0'   # Null terminate
+                data_bytes += bytearray(list(param))
+                data_bytes += '\0'   # Null terminate
             elif typ == 'hex':
                 binary_data = self.hex_str_bytes(param)
-                data_bytes += b'H'
+                data_bytes += 'H'
                 self.align_32bit(data_bytes)
                 i = len(binary_data)
                 data_bytes += self.int32_to_big_endian_bytes(i)
@@ -321,7 +293,7 @@ class MbedTlsTest(BaseHostTest):
             name, function_id, dependencies, args = self.tests[self.test_index]
             self.run_test(name, function_id, dependencies, args)
         else:
-            self.notify_complete(self.suite_passed)
+            self.notify_complete(True)
 
     def run_test(self, name, function_id, dependencies, args):
         """
@@ -337,10 +309,7 @@ class MbedTlsTest(BaseHostTest):
 
         param_bytes, length = self.test_vector_to_bytes(function_id,
                                                         dependencies, args)
-        self.send_kv(
-            ''.join('{:02x}'.format(x) for x in length),
-            ''.join('{:02x}'.format(x) for x in param_bytes)
-        )
+        self.send_kv(length, param_bytes)
 
     @staticmethod
     def get_result(value):
@@ -384,8 +353,6 @@ class MbedTlsTest(BaseHostTest):
         self.log('{{__testcase_start;%s}}' % name)
         self.log('{{__testcase_finish;%s;%d;%d}}' % (name, int_val == 0,
                                                      int_val != 0))
-        if int_val != 0:
-            self.suite_passed = False
         self.run_next_test()
 
     @event_callback("F")
