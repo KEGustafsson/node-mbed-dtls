@@ -85,7 +85,7 @@ class DtlsSocket extends stream.Duplex {
 //  }
 
   _write(chunk, encoding, callback) {
-    console.log("Srv instance socket send.\n");
+    //console.log("Srv instance socket send.\n");
     if (!this.mbedSocket) {
       return callback(new Error('no mbed socket'));
     }

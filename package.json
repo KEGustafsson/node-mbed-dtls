@@ -1,6 +1,6 @@
 {
   "name": "node-mbed-dtls-modified",
-  "version": "2.4.5",
+  "version": "2.4.8",
   "description": "Node mbed DTLS Modified",
   "main": "index.js",
   "scripts": {
@@ -26,6 +26,6 @@
     "sinon": "^1.17.1"
   },
   "engines": {
-    "node": ">=5.0.0"
+    "node": ">=12.0.0"
   }
 }
