@@ -226,7 +226,6 @@ DtlsServer::DtlsServer(const unsigned char *srv_key,
     {
       printf( "private key loaded: %s-%zu type: %i\n", mbedtls_pk_get_name(&pkey), mbedtls_pk_get_bitlen(&pkey), mbedtls_pk_get_type(&pkey) );
     }
-    // if using a key, it must meet the CoAP Specification
   }
 
   if( ca_crt && ca_crt_len )
