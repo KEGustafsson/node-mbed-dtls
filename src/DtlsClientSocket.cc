@@ -181,6 +181,8 @@ DtlsClientSocket::DtlsClientSocket(
   {
     allowed_ciphersuites[suite++] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8;
     allowed_ciphersuites[suite++] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8;
+    allowed_ciphersuites[suite++] = MBEDTLS_TLS_RSA_WITH_AES_128_GCM_SHA256;
+    allowed_ciphersuites[suite++] = MBEDTLS_TLS_RSA_WITH_AES_256_GCM_SHA384;
   }
   if( ident && psk )
   {

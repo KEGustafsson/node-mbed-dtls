@@ -226,19 +226,7 @@ DtlsServer::DtlsServer(const unsigned char *srv_key,
     {
       printf( "private key loaded: %s-%zu type: %i\n", mbedtls_pk_get_name(&pkey), mbedtls_pk_get_bitlen(&pkey), mbedtls_pk_get_type(&pkey) );
     }
-
-    // Since this library is exclusively for datagram (UDP) connections
     // if using a key, it must meet the CoAP Specification
-    // https://tools.ietf.org/html/rfc7252#section-9.1.3.3
-    // required is an Elliptic Curve key with 256 bits 'secp256r1' (aka 'prime256v1' in OpenSSL)
-    // TODO: - either pass validating the key into a separate function that can be called from node OR
-    //       - make an enum with operating modes that gets passed in and we can evaluate here
-    if( mbedtls_pk_get_type(&pkey) != MBEDTLS_PK_ECKEY &&
-        mbedtls_pk_get_bitlen(&pkey) != 256 )
-    {
-      Nan::ThrowError( "private key must be Elliptic-Curve type for DTLS and CoAP (see https://tools.ietf.org/html/rfc7252#section-9.1.3.3)" );
-      return;
-    }
   }
 
   if( ca_crt && ca_crt_len )
