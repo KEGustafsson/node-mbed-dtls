@@ -15,6 +15,15 @@ than the current threshold 19. To test larger values, please \
 adapt the script tests/data_files/dir-max/long.sh."
 #endif
 
+/* Test-only profile allowing all digests, PK algorithms, and curves. */
+const mbedtls_x509_crt_profile profile_all =
+{
+    0xFFFFFFFF, /* Any MD        */
+    0xFFFFFFFF, /* Any PK alg    */
+    0xFFFFFFFF, /* Any curve     */
+    1024,
+};
+
 /* Profile for backward compatibility. Allows SHA-1, unlike the default
    profile. */
 const mbedtls_x509_crt_profile compat_profile =
@@ -349,6 +358,8 @@ void x509_verify( char *crt_file, char *ca_file, char *crl_file,
         profile = &mbedtls_x509_crt_profile_suiteb;
     else if( strcmp( profile_str, "compat" ) == 0 )
         profile = &compat_profile;
+    else if( strcmp( profile_str, "all" ) == 0 )
+        profile = &profile_all;
     else
         TEST_ASSERT( "Unknown algorithm profile" == 0 );
 
@@ -793,21 +804,21 @@ void x509_get_time( int tag, char * time_str, int ret, int year, int mon,
 /* END_CASE */
 
 /* BEGIN_CASE depends_on:MBEDTLS_X509_CRT_PARSE_C:MBEDTLS_X509_RSASSA_PSS_SUPPORT */
-void x509_parse_rsassa_pss_params( data_t * hex_params, int params_tag,
+void x509_parse_rsassa_pss_params( data_t * params, int params_tag,
                                    int ref_msg_md, int ref_mgf_md,
                                    int ref_salt_len, int ref_ret )
 {
     int my_ret;
-    mbedtls_x509_buf params;
+    mbedtls_x509_buf buf;
     mbedtls_md_type_t my_msg_md, my_mgf_md;
     int my_salt_len;
 
-    params.p = hex_params->x;
-    params.len = hex_params->len;
-    params.tag = params_tag;
+    buf.p = params->x;
+    buf.len = params->len;
+    buf.tag = params_tag;
 
-    my_ret = mbedtls_x509_get_rsassa_pss_params( &params, &my_msg_md, &my_mgf_md,
-                                         &my_salt_len );
+    my_ret = mbedtls_x509_get_rsassa_pss_params( &buf, &my_msg_md, &my_mgf_md,
+                                                 &my_salt_len );
 
     TEST_ASSERT( my_ret == ref_ret );
 

@@ -1,8 +1,14 @@
 /*
  *  DTLS cookie callbacks implementation
  *
- *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
- *  SPDX-License-Identifier: Apache-2.0
+ *  Copyright The Mbed TLS Contributors
+ *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+ *
+ *  This file is provided under the Apache License 2.0, or the
+ *  GNU General Public License v2.0 or later.
+ *
+ *  **********
+ *  Apache License 2.0:
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
  *  not use this file except in compliance with the License.
@@ -16,7 +22,26 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  This file is part of mbed TLS (https://tls.mbed.org)
+ *  **********
+ *
+ *  **********
+ *  GNU General Public License v2.0 or later:
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  **********
  */
 /*
  * These session callbacks use a simple chained list
@@ -49,20 +74,7 @@
  * available. Try SHA-256 first, 512 wastes resources since we need to stay
  * with max 32 bytes of cookie for DTLS 1.0
  */
-
-#define REDUCED_HASHSPACE
-
-#if defined(MBEDTLS_SHA1_C)
-#define COOKIE_MD           MBEDTLS_MD_SHA1
-#ifdef REDUCED_HASHSPACE
-    #define COOKIE_MD_OUTLEN    4 //reduced bitspace from 20 so we don't split our hellos [unsupported by mbedtls]
-    #define COOKIE_HMAC_LEN     4 //reduced bitspace from 20 so we don't split our hellos [unsupported by mbedtls]
-    #define FULL_HMAC_LEN       20
-#else
-    #define COOKIE_MD_OUTLEN    20
-    #define COOKIE_HMAC_LEN     20
-#endif
-#elif defined(MBEDTLS_SHA256_C)
+#if defined(MBEDTLS_SHA256_C)
 #define COOKIE_MD           MBEDTLS_MD_SHA224
 #define COOKIE_MD_OUTLEN    32
 #define COOKIE_HMAC_LEN     28
@@ -70,6 +82,10 @@
 #define COOKIE_MD           MBEDTLS_MD_SHA384
 #define COOKIE_MD_OUTLEN    48
 #define COOKIE_HMAC_LEN     28
+#elif defined(MBEDTLS_SHA1_C)
+#define COOKIE_MD           MBEDTLS_MD_SHA1
+#define COOKIE_MD_OUTLEN    20
+#define COOKIE_HMAC_LEN     20
 #else
 #error "DTLS hello verify needs SHA-1 or SHA-2"
 #endif
@@ -140,15 +156,9 @@ static int ssl_cookie_hmac( mbedtls_md_context_t *hmac_ctx,
                             unsigned char **p, unsigned char *end,
                             const unsigned char *cli_id, size_t cli_id_len )
 {
-#ifdef REDUCED_HASHSPACE
-    unsigned char hmac_out[FULL_HMAC_LEN];
-#else
     unsigned char hmac_out[COOKIE_MD_OUTLEN];
-#endif
 
-
-    if( (size_t)( end - *p ) < COOKIE_HMAC_LEN )
-        return( MBEDTLS_ERR_SSL_BUFFER_TOO_SMALL );
+    MBEDTLS_SSL_CHK_BUF_PTR( *p, end, COOKIE_HMAC_LEN );
 
     if( mbedtls_md_hmac_reset(  hmac_ctx ) != 0 ||
         mbedtls_md_hmac_update( hmac_ctx, time, 4 ) != 0 ||
@@ -158,18 +168,7 @@ static int ssl_cookie_hmac( mbedtls_md_context_t *hmac_ctx,
         return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
     }
 
-#ifdef REDUCED_HASHSPACE
-    mbedtls_platform_zeroize( *p, COOKIE_MD_OUTLEN );
-
-    for(int i = 0; i < FULL_HMAC_LEN; i++)
-    {
-        //reducing bytespace so we don't split our hellos
-        (*p)[i % COOKIE_MD_OUTLEN] ^= hmac_out[i];
-    }
-#else
     memcpy( *p, hmac_out, COOKIE_HMAC_LEN );
-#endif
-
     *p += COOKIE_HMAC_LEN;
 
     return( 0 );
@@ -189,8 +188,7 @@ int mbedtls_ssl_cookie_write( void *p_ctx,
     if( ctx == NULL || cli_id == NULL )
         return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
 
-    if( (size_t)( end - *p ) < COOKIE_LEN )
-        return( MBEDTLS_ERR_SSL_BUFFER_TOO_SMALL );
+    MBEDTLS_SSL_CHK_BUF_PTR( *p, end, COOKIE_LEN );
 
 #if defined(MBEDTLS_HAVE_TIME)
     t = (unsigned long) mbedtls_time( NULL );

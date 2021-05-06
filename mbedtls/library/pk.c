@@ -1,8 +1,14 @@
 /*
  *  Public Key abstraction layer
  *
- *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
- *  SPDX-License-Identifier: Apache-2.0
+ *  Copyright The Mbed TLS Contributors
+ *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+ *
+ *  This file is provided under the Apache License 2.0, or the
+ *  GNU General Public License v2.0 or later.
+ *
+ *  **********
+ *  Apache License 2.0:
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
  *  not use this file except in compliance with the License.
@@ -16,7 +22,26 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  This file is part of mbed TLS (https://tls.mbed.org)
+ *  **********
+ *
+ *  **********
+ *  GNU General Public License v2.0 or later:
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  **********
  */
 
 #if !defined(MBEDTLS_CONFIG_FILE)
@@ -44,13 +69,18 @@
 #include <limits.h>
 #include <stdint.h>
 
+/* Parameter validation macros based on platform_util.h */
+#define PK_VALIDATE_RET( cond )    \
+    MBEDTLS_INTERNAL_VALIDATE_RET( cond, MBEDTLS_ERR_PK_BAD_INPUT_DATA )
+#define PK_VALIDATE( cond )        \
+    MBEDTLS_INTERNAL_VALIDATE( cond )
+
 /*
  * Initialise a mbedtls_pk_context
  */
 void mbedtls_pk_init( mbedtls_pk_context *ctx )
 {
-    if( ctx == NULL )
-        return;
+    PK_VALIDATE( ctx != NULL );
 
     ctx->pk_info = NULL;
     ctx->pk_ctx = NULL;
@@ -61,10 +91,11 @@ void mbedtls_pk_init( mbedtls_pk_context *ctx )
  */
 void mbedtls_pk_free( mbedtls_pk_context *ctx )
 {
-    if( ctx == NULL || ctx->pk_info == NULL )
+    if( ctx == NULL )
         return;
 
-    ctx->pk_info->ctx_free_func( ctx->pk_ctx );
+    if ( ctx->pk_info != NULL )
+        ctx->pk_info->ctx_free_func( ctx->pk_ctx );
 
     mbedtls_platform_zeroize( ctx, sizeof( mbedtls_pk_context ) );
 }
@@ -75,6 +106,7 @@ void mbedtls_pk_free( mbedtls_pk_context *ctx )
  */
 void mbedtls_pk_restart_init( mbedtls_pk_restart_ctx *ctx )
 {
+    PK_VALIDATE( ctx != NULL );
     ctx->pk_info = NULL;
     ctx->rs_ctx = NULL;
 }
@@ -128,7 +160,8 @@ const mbedtls_pk_info_t * mbedtls_pk_info_from_type( mbedtls_pk_type_t pk_type )
  */
 int mbedtls_pk_setup( mbedtls_pk_context *ctx, const mbedtls_pk_info_t *info )
 {
-    if( ctx == NULL || info == NULL || ctx->pk_info != NULL )
+    PK_VALIDATE_RET( ctx != NULL );
+    if( info == NULL || ctx->pk_info != NULL )
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
     if( ( ctx->pk_ctx = info->ctx_alloc_func() ) == NULL )
@@ -151,7 +184,8 @@ int mbedtls_pk_setup_rsa_alt( mbedtls_pk_context *ctx, void * key,
     mbedtls_rsa_alt_context *rsa_alt;
     const mbedtls_pk_info_t *info = &mbedtls_rsa_alt_info;
 
-    if( ctx == NULL || ctx->pk_info != NULL )
+    PK_VALIDATE_RET( ctx != NULL );
+    if( ctx->pk_info != NULL )
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
     if( ( ctx->pk_ctx = info->ctx_alloc_func() ) == NULL )
@@ -175,7 +209,9 @@ int mbedtls_pk_setup_rsa_alt( mbedtls_pk_context *ctx, void * key,
  */
 int mbedtls_pk_can_do( const mbedtls_pk_context *ctx, mbedtls_pk_type_t type )
 {
-    /* null or NONE context can't do anything */
+    /* A context with null pk_info is not set up yet and can't do anything.
+     * For backward compatibility, also accept NULL instead of a context
+     * pointer. */
     if( ctx == NULL || ctx->pk_info == NULL )
         return( 0 );
 
@@ -232,7 +268,12 @@ int mbedtls_pk_verify_restartable( mbedtls_pk_context *ctx,
                const unsigned char *sig, size_t sig_len,
                mbedtls_pk_restart_ctx *rs_ctx )
 {
-    if( ctx == NULL || ctx->pk_info == NULL ||
+    PK_VALIDATE_RET( ctx != NULL );
+    PK_VALIDATE_RET( ( md_alg == MBEDTLS_MD_NONE && hash_len == 0 ) ||
+                     hash != NULL );
+    PK_VALIDATE_RET( sig != NULL );
+
+    if( ctx->pk_info == NULL ||
         pk_hashlen_helper( md_alg, &hash_len ) != 0 )
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
@@ -285,7 +326,12 @@ int mbedtls_pk_verify_ext( mbedtls_pk_type_t type, const void *options,
                    const unsigned char *hash, size_t hash_len,
                    const unsigned char *sig, size_t sig_len )
 {
-    if( ctx == NULL || ctx->pk_info == NULL )
+    PK_VALIDATE_RET( ctx != NULL );
+    PK_VALIDATE_RET( ( md_alg == MBEDTLS_MD_NONE && hash_len == 0 ) ||
+                     hash != NULL );
+    PK_VALIDATE_RET( sig != NULL );
+
+    if( ctx->pk_info == NULL )
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
     if( ! mbedtls_pk_can_do( ctx, type ) )
@@ -345,7 +391,12 @@ int mbedtls_pk_sign_restartable( mbedtls_pk_context *ctx,
              int (*f_rng)(void *, unsigned char *, size_t), void *p_rng,
              mbedtls_pk_restart_ctx *rs_ctx )
 {
-    if( ctx == NULL || ctx->pk_info == NULL ||
+    PK_VALIDATE_RET( ctx != NULL );
+    PK_VALIDATE_RET( ( md_alg == MBEDTLS_MD_NONE && hash_len == 0 ) ||
+                     hash != NULL );
+    PK_VALIDATE_RET( sig != NULL );
+
+    if( ctx->pk_info == NULL ||
         pk_hashlen_helper( md_alg, &hash_len ) != 0 )
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
@@ -399,7 +450,12 @@ int mbedtls_pk_decrypt( mbedtls_pk_context *ctx,
                 unsigned char *output, size_t *olen, size_t osize,
                 int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
 {
-    if( ctx == NULL || ctx->pk_info == NULL )
+    PK_VALIDATE_RET( ctx != NULL );
+    PK_VALIDATE_RET( input != NULL || ilen == 0 );
+    PK_VALIDATE_RET( output != NULL || osize == 0 );
+    PK_VALIDATE_RET( olen != NULL );
+
+    if( ctx->pk_info == NULL )
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
     if( ctx->pk_info->decrypt_func == NULL )
@@ -417,7 +473,12 @@ int mbedtls_pk_encrypt( mbedtls_pk_context *ctx,
                 unsigned char *output, size_t *olen, size_t osize,
                 int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
 {
-    if( ctx == NULL || ctx->pk_info == NULL )
+    PK_VALIDATE_RET( ctx != NULL );
+    PK_VALIDATE_RET( input != NULL || ilen == 0 );
+    PK_VALIDATE_RET( output != NULL || osize == 0 );
+    PK_VALIDATE_RET( olen != NULL );
+
+    if( ctx->pk_info == NULL )
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
     if( ctx->pk_info->encrypt_func == NULL )
@@ -432,8 +493,11 @@ int mbedtls_pk_encrypt( mbedtls_pk_context *ctx,
  */
 int mbedtls_pk_check_pair( const mbedtls_pk_context *pub, const mbedtls_pk_context *prv )
 {
-    if( pub == NULL || pub->pk_info == NULL ||
-        prv == NULL || prv->pk_info == NULL ||
+    PK_VALIDATE_RET( pub != NULL );
+    PK_VALIDATE_RET( prv != NULL );
+
+    if( pub->pk_info == NULL ||
+        prv->pk_info == NULL ||
         prv->pk_info->check_pair_func == NULL )
     {
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
@@ -458,6 +522,8 @@ int mbedtls_pk_check_pair( const mbedtls_pk_context *pub, const mbedtls_pk_conte
  */
 size_t mbedtls_pk_get_bitlen( const mbedtls_pk_context *ctx )
 {
+    /* For backward compatibility, accept NULL or a context that
+     * isn't set up yet, and return a fake value that should be safe. */
     if( ctx == NULL || ctx->pk_info == NULL )
         return( 0 );
 
@@ -469,7 +535,8 @@ size_t mbedtls_pk_get_bitlen( const mbedtls_pk_context *ctx )
  */
 int mbedtls_pk_debug( const mbedtls_pk_context *ctx, mbedtls_pk_debug_item *items )
 {
-    if( ctx == NULL || ctx->pk_info == NULL )
+    PK_VALIDATE_RET( ctx != NULL );
+    if( ctx->pk_info == NULL )
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
     if( ctx->pk_info->debug_func == NULL )
