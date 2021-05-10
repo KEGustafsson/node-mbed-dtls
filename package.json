@@ -1,6 +1,6 @@
 {
   "_from": "github:KEGustafsson/node-mbed-dtls",
-  "_id": "node-mbed-dtls-modified@2.4.14",
+  "_id": "node-mbed-dtls-modified@2.16.10",
   "_inBundle": false,
   "_integrity": "",
   "_location": "/node-mbed-dtls-modified",
@@ -56,5 +56,5 @@
     "start": "node index.js",
     "test": "mocha test/server.js"
   },
-  "version": "2.4.14"
+  "version": "2.16.10"
 }
