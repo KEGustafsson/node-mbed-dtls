@@ -2,6 +2,7 @@
 *.sln
 *.vcxproj
 
+aes/aescrypt2
 aes/crypt_and_hash
 hash/generic_sum
 hash/hello
@@ -48,7 +49,6 @@ test/cpp_dummy_build
 test/ssl_cert_test
 test/udp_proxy
 test/zeroize
-test/query_compile_time_config
 util/pem2der
 util/strerror
 x509/cert_app

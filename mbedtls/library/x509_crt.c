@@ -1,14 +1,8 @@
 /*
  *  X.509 certificate parsing and verification
  *
- *  Copyright The Mbed TLS Contributors
- *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
- *
- *  This file is provided under the Apache License 2.0, or the
- *  GNU General Public License v2.0 or later.
- *
- *  **********
- *  Apache License 2.0:
+ *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
+ *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
  *  not use this file except in compliance with the License.
@@ -22,26 +16,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  **********
- *
- *  **********
- *  GNU General Public License v2.0 or later:
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- *  **********
+ *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 /*
  *  The ITU-T X.509 standard defines a certificate format for PKI.
@@ -393,7 +368,7 @@ static void x509_crt_verify_chain_reset(
     for( i = 0; i < MBEDTLS_X509_MAX_VERIFY_CHAIN_SIZE; i++ )
     {
         ver_chain->items[i].crt = NULL;
-        ver_chain->items[i].flags = (uint32_t) -1;
+        ver_chain->items[i].flags = -1;
     }
 
     ver_chain->len = 0;
@@ -418,7 +393,7 @@ static int x509_get_version( unsigned char **p,
             return( 0 );
         }
 
-        return( MBEDTLS_ERR_X509_INVALID_FORMAT + ret );
+        return( ret );
     }
 
     end = *p + len;
@@ -485,7 +460,7 @@ static int x509_get_uid( unsigned char **p,
         if( ret == MBEDTLS_ERR_ASN1_UNEXPECTED_TAG )
             return( 0 );
 
-        return( MBEDTLS_ERR_X509_INVALID_FORMAT + ret );
+        return( ret );
     }
 
     uid->p = *p;
@@ -538,12 +513,6 @@ static int x509_get_basic_constraints( unsigned char **p,
     if( *p != end )
         return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
-
-    /* Do not accept max_pathlen equal to INT_MAX to avoid a signed integer
-     * overflow, which is an undefined behavior. */
-    if( *max_pathlen == INT_MAX )
-        return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
-                MBEDTLS_ERR_ASN1_INVALID_LENGTH );
 
     (*max_pathlen)++;
 
@@ -730,13 +699,14 @@ static int x509_get_crt_ext( unsigned char **p,
     size_t len;
     unsigned char *end_ext_data, *end_ext_octet;
 
-    if( *p == end )
-        return( 0 );
-
     if( ( ret = mbedtls_x509_get_ext( p, end, &crt->v3_ext, 3 ) ) != 0 )
-        return( ret );
+    {
+        if( ret == MBEDTLS_ERR_ASN1_UNEXPECTED_TAG )
+            return( 0 );
 
-    end = crt->v3_ext.p + crt->v3_ext.len;
+        return( ret );
+    }
+
     while( *p < end )
     {
         /*
@@ -1088,7 +1058,6 @@ static int x509_crt_parse_der_core( mbedtls_x509_crt *crt, const unsigned char *
 
     if( crt->sig_oid.len != sig_oid2.len ||
         memcmp( crt->sig_oid.p, sig_oid2.p, crt->sig_oid.len ) != 0 ||
-        sig_params1.tag != sig_params2.tag ||
         sig_params1.len != sig_params2.len ||
         ( sig_params1.len != 0 &&
           memcmp( sig_params1.p, sig_params2.p, sig_params1.len ) != 0 ) )
@@ -1470,7 +1439,7 @@ static int x509_info_subject_alt_name( char **buf, size_t *size,
     }
 
 #define CERT_TYPE(type,name)                    \
-    if( ns_cert_type & (type) )                 \
+    if( ns_cert_type & type )                   \
         PRINT_ITEM( name );
 
 static int x509_info_cert_type( char **buf, size_t *size,
@@ -1497,7 +1466,7 @@ static int x509_info_cert_type( char **buf, size_t *size,
 }
 
 #define KEY_USAGE(code,name)    \
-    if( key_usage & (code) )    \
+    if( key_usage & code )      \
         PRINT_ITEM( name );
 
 static int x509_info_key_usage( char **buf, size_t *size,
@@ -1817,7 +1786,8 @@ int mbedtls_x509_crt_is_revoked( const mbedtls_x509_crt *crt, const mbedtls_x509
         if( crt->serial.len == cur->serial.len &&
             memcmp( crt->serial.p, cur->serial.p, crt->serial.len ) == 0 )
         {
-            return( 1 );
+            if( mbedtls_x509_time_is_past( &cur->revocation_date ) )
+                return( 1 );
         }
 
         cur = cur->next;
@@ -2118,13 +2088,15 @@ check_signature:
             continue;
         }
 
-        *r_parent = parent;
-        *r_signature_is_good = signature_is_good;
-
         break;
     }
 
-    if( parent == NULL )
+    if( parent != NULL )
+    {
+        *r_parent = parent;
+        *r_signature_is_good = signature_is_good;
+    }
+    else
     {
         *r_parent = fallback_parent;
         *r_signature_is_good = fallback_signature_is_good;
@@ -2207,7 +2179,7 @@ static int x509_crt_find_parent(
     }
 
     /* extra precaution against mistakes in the caller */
-    if( *parent == NULL )
+    if( parent == NULL )
     {
         *parent_is_trusted = 0;
         *signature_is_good = 0;
@@ -2265,7 +2237,7 @@ static int x509_crt_check_ee_locally_trusted(
  * Tests for (aspects of) this function should include at least:
  * - trusted EE
  * - EE -> trusted root
- * - EE -> intermediate CA -> trusted root
+ * - EE -> intermedate CA -> trusted root
  * - if relevant: EE untrusted
  * - if relevant: EE -> intermediate, untrusted
  * with the aspect under test checked at each relevant level (EE, int, root).
