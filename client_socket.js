@@ -132,6 +132,12 @@ class DtlsClientSocket extends stream.Duplex {
   }
 
   _error(code, msg) {
+    console.log("Errori tuli")
+    if (code === -26880) {
+      console.log("Errori tuli")
+      return;
+    }
+
     if (code === MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
       this._end();
       return;
@@ -174,12 +180,16 @@ class DtlsClientSocket extends stream.Duplex {
     }
   }
 
+  close() {
+    this.dgramSocket.close();
+  }
+
   _closeSocket() {
     if (!this.dgramSocket) {
       this._socketClosed();
       return;
     }
-
+    
     this.dgramSocket.close();
   }
 
