@@ -132,9 +132,8 @@ class DtlsClientSocket extends stream.Duplex {
   }
 
   _error(code, msg) {
-    console.log("Errori tuli")
     if (code === -26880) {
-      console.log("Errori tuli")
+      console.log("Connection error")
       return;
     }
 
