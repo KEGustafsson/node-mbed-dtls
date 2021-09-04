@@ -321,14 +321,18 @@ send_request:
      * 8. Done, cleanly close the connection
      */
 close_notify:
+    /*
     mbedtls_printf( "  . Closing the connection..." );
+    */
 
     /* No error checking, the connection might be closed already */
+    /*
     do ret = mbedtls_ssl_close_notify( &ssl );
     while( ret == MBEDTLS_ERR_SSL_WANT_WRITE );
     ret = 0;
 
     mbedtls_printf( " done\n" );
+    */
 
     /*
      * 9. Final clean-ups and exit
